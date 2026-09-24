@@ -778,6 +778,11 @@
       <button type="button" id="delMatModeBtn" class="del-toggle-btn">🗑 Remove</button>
     </div>
 
+    <label class="float inline-compact" style="margin-top:14px;">
+      <span class="field-label">Gap (mm, total) — default 3</span>
+      <input type="text" id="gapInput" inputmode="decimal" placeholder="3" autocomplete="off">
+    </label>
+
     <div class="mat-card" id="matCard">
       <div class="mc-header">
         <div class="label">Up Count<br>(in roll)</div>
@@ -809,7 +814,7 @@
           <div class="stat-value" id="matWastePct">—</div>
         </div>
       </div>
-      <div class="mat-note">Gap: <b>1.5 mm</b> on each side of the repeat (3 mm total per piece)</div>
+      <div class="mat-note" id="matGapNote">Gap: <b>1.5 mm</b> on each side of the repeat (3 mm total per piece)</div>
     </div>
 
     <div class="no-match" id="matNoFit">Pitch is larger than the selected roll width — no full repeat fits. Try a smaller length or a wider roll.</div>
@@ -1197,6 +1202,8 @@
   // Material usage (length-based)
   // ═══════════════════════════════════════════
   const lengthInput   = document.getElementById('lengthInput');
+  const gapInput      = document.getElementById('gapInput');
+  const matGapNote    = document.getElementById('matGapNote');
   const matCard       = document.getElementById('matCard');
   const matRepeats    = document.getElementById('matRepeats');
   const matPitch      = document.getElementById('matPitch');
@@ -1208,7 +1215,7 @@
   const matNoFit      = document.getElementById('matNoFit');
 
   const GAP_MM = 1.5; // fixed gap on each side of the repeat (top/bottom)
-  const MATERIAL_MARGIN_MM = 10; // fixed 1cm reserved margin at the top and bottom of the roll width
+  const MATERIAL_MARGIN_MM = 4; // fixed 4mm reserved margin at the top and bottom of the roll width
 
   function calcMaterial(){
     const raw = lengthInput.value.trim().replace(',','.');
@@ -1229,11 +1236,16 @@
     }
 
     const lengthMM = cm * 10;
-    const pitchMM  = lengthMM + (GAP_MM * 2);
-    const usableMM = selectedMaterial - (MATERIAL_MARGIN_MM * 2); // 1cm reserved at top + 1cm at bottom
+    const gapRaw   = gapInput.value.trim().replace(',','.');
+    const gapNum   = parseFloat(gapRaw);
+    const gapTotal = (gapRaw !== '' && !isNaN(gapNum) && gapNum >= 0) ? gapNum : (GAP_MM * 2);
+    const pitchMM  = lengthMM + gapTotal;
+    const usableMM = selectedMaterial - (MATERIAL_MARGIN_MM * 2); // 4mm reserved at top + 4mm at bottom
+
+    matGapNote.innerHTML = `Gap: <b>${formatNum(gapTotal/2)} mm</b> on each side of the repeat (${formatNum(gapTotal)} mm total per piece)`;
 
     if (pitchMM > usableMM){
-      matNoFit.textContent = `Pitch is larger than the usable roll width (roll width minus 1 cm top + 1 cm bottom) — no full repeat fits. Try a smaller length or a wider roll.`;
+      matNoFit.textContent = `Pitch is larger than the usable roll width (roll width minus ${MATERIAL_MARGIN_MM}mm top + ${MATERIAL_MARGIN_MM}mm bottom) — no full repeat fits. Try a smaller length or a wider roll.`;
       matNoFit.classList.add('show');
       lastMatCalc = null;
       renderVisuals();
@@ -1262,6 +1274,7 @@
   }
 
   lengthInput.addEventListener('input', calcMaterial);
+  gapInput.addEventListener('input', calcMaterial);
 
   // ═══════════════════════════════════════════
   // Visual Preview (sticker / cylinder / material)
