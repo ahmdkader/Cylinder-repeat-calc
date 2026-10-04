@@ -727,12 +727,12 @@
 
     <div class="dual-field">
       <label class="float inline-compact">
-        <span class="field-label">Width (cm)</span>
-        <input type="text" id="sizeInput" inputmode="decimal" placeholder="e.g. 14.5" autocomplete="off">
+        <span class="field-label">Width (mm)</span>
+        <input type="text" id="sizeInput" inputmode="decimal" placeholder="e.g. 145" autocomplete="off">
       </label>
       <label class="float inline-compact">
-        <span class="field-label">Length (cm)</span>
-        <input type="text" id="lengthInput" inputmode="decimal" placeholder="e.g. 10" autocomplete="off">
+        <span class="field-label">Length (mm)</span>
+        <input type="text" id="lengthInput" inputmode="decimal" placeholder="e.g. 100" autocomplete="off">
       </label>
     </div>
 
@@ -1064,17 +1064,17 @@
 
   function findCylinder(){
     const raw = sizeInput.value.trim().replace(',','.');
-    const cm  = parseFloat(raw);
+    const mm  = parseFloat(raw);
     matchCard.classList.remove('show');
     noMatch.classList.remove('show');
     matchTable.classList.remove('show');
-    if (isNaN(cm) || raw === ''){
+    if (isNaN(mm) || raw === ''){
       lastMatch = null;
       renderVisuals();
       return;
     }
 
-    const target = (cm * 10) + 3;
+    const target = mm + 3;
     const TOLERANCE = 0.5; // mm — value may be up to 0.5mm under target
     let best = null;
     for (const cyl of CYLINDERS){
@@ -1219,10 +1219,10 @@
 
   function calcMaterial(){
     const raw = lengthInput.value.trim().replace(',','.');
-    const cm  = parseFloat(raw);
+    const mm  = parseFloat(raw);
     matCard.classList.remove('show');
     matNoFit.classList.remove('show');
-    if (isNaN(cm) || raw === '' || cm <= 0){
+    if (isNaN(mm) || raw === '' || mm <= 0){
       lastMatCalc = null;
       renderVisuals();
       return;
@@ -1235,7 +1235,7 @@
       return;
     }
 
-    const lengthMM = cm * 10;
+    const lengthMM = mm;
     const gapRaw   = gapInput.value.trim().replace(',','.');
     const gapNum   = parseFloat(gapRaw);
     const gapTotal = (gapRaw !== '' && !isNaN(gapNum) && gapNum >= 0) ? gapNum : (GAP_MM * 2);
@@ -1357,13 +1357,13 @@
   const visualSection = document.getElementById('visualSection');
 
   function renderVisuals(){
-    const wCm = parseFloat(sizeInput.value.trim().replace(',','.'));
-    const lCm = parseFloat(lengthInput.value.trim().replace(',','.'));
-    const readyAll = lastMatch && lastMatCalc && !isNaN(wCm) && !isNaN(lCm) && wCm > 0 && lCm > 0;
+    const wMM = parseFloat(sizeInput.value.trim().replace(',','.'));
+    const lMM = parseFloat(lengthInput.value.trim().replace(',','.'));
+    const readyAll = lastMatch && lastMatCalc && !isNaN(wMM) && !isNaN(lMM) && wMM > 0 && lMM > 0;
 
     // hide the whole preview section until a size (width) has been typed
     const sizeRaw = sizeInput.value.trim();
-    if (sizeRaw === '' || isNaN(wCm)){
+    if (sizeRaw === '' || isNaN(wMM)){
       visualSection.style.display = 'none';
       svgLayout.innerHTML = '';
       capLayout.textContent = '—';
@@ -1372,8 +1372,8 @@
     visualSection.style.display = 'block';
 
     if (readyAll){
-      const widthMM  = wCm * 10;
-      const lengthMM = lCm * 10;
+      const widthMM  = wMM;
+      const lengthMM = lMM;
       const layout = buildLayoutInner(
         lastMatch.beforeDist,
         lastMatch.divisor,
@@ -1390,7 +1390,7 @@
       const totalPieces = lastMatch.divisor * lastMatCalc.repeats;
       capLayout.textContent =
         `Cyl ${lastMatch.cyl} → ${lastMatch.divisor} cols × ${lastMatCalc.repeats} rows = ${totalPieces} pcs · ` +
-        `sticker ${formatNum(wCm)}×${formatNum(lCm)} cm · waste ${formatNum(lastMatCalc.materialMM - lastMatCalc.totalUsedMM)} mm (top/bottom)`;
+        `sticker ${formatNum(wMM)}×${formatNum(lMM)} mm · waste ${formatNum(lastMatCalc.materialMM - lastMatCalc.totalUsedMM)} mm (top/bottom)`;
       visualEmpty.style.display = 'none';
     } else {
       svgLayout.innerHTML = '';
