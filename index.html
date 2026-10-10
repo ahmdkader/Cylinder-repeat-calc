@@ -111,6 +111,31 @@
     flex:0 0 auto;
     text-align:center;
   }
+  .margin-toggle-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-top:12px;
+  }
+  .margin-toggle-btn{
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    font-weight:700;
+    padding:8px 18px;
+    border-radius:20px;
+    border:1.5px solid var(--line);
+    background:#fff;
+    color:#8a99a1;
+    cursor:pointer;
+    letter-spacing:0.06em;
+    transition:all .15s;
+  }
+  .margin-toggle-btn.on{
+    background:var(--teal);
+    border-color:var(--teal-dark);
+    color:#fff;
+  }
   .field-label{
     font-family:'JetBrains Mono', monospace;
     font-size:13.5px;
@@ -330,10 +355,12 @@
     background:var(--gold-pale);
     padding:10px 18px;
     font-family:'JetBrains Mono', monospace;
-    font-size:14.5px;
+    font-size:11.5px;
     color:#6b4e10;
     text-align:center;
     border-top:1px solid rgba(200,160,64,0.3);
+    white-space:nowrap;
+    overflow-x:auto;
   }
   .mc-detail b{ color:var(--teal-dark); }
 
@@ -588,10 +615,11 @@
   }
   .stat-box .stat-label{
     font-family:'JetBrains Mono', monospace;
-    font-size:11.5px;
-    letter-spacing:0.08em;
+    font-size:10px;
+    letter-spacing:0.02em;
     text-transform:uppercase;
     color:#8a6c1a;
+    white-space:nowrap;
   }
   .stat-box .stat-value{
     font-family:'JetBrains Mono', monospace;
@@ -736,6 +764,21 @@
       </label>
     </div>
 
+    <label class="float inline-compact" style="margin-top:12px;">
+      <span class="field-label">Roll Width (mm)</span>
+      <input type="text" id="matWidthInput" inputmode="decimal" placeholder="e.g. 500" autocomplete="off">
+    </label>
+
+    <div class="margin-toggle-row">
+      <span class="field-label">0.5mm Match Margin</span>
+      <button type="button" id="marginToggleBtn" class="margin-toggle-btn on">ON</button>
+    </div>
+
+    <label class="float inline-compact" style="margin-top:12px;">
+      <span class="field-label">Gap (mm, total) — default 3</span>
+      <input type="text" id="gapInput" inputmode="decimal" placeholder="3" autocomplete="off">
+    </label>
+
     <div class="match-card" id="matchCard">
       <div class="mc-header">
         <div class="label">Cylinder<br>No.</div>
@@ -753,6 +796,14 @@
           <div class="stat-label">After Distortion</div>
           <div class="stat-value" id="matchAfterDist">—</div>
         </div>
+        <div class="stat-box">
+          <div class="stat-label">Repeat Gap</div>
+          <div class="stat-value" id="matchRepeatGap">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Across Gap</div>
+          <div class="stat-value" id="matchAcrossGap">—</div>
+        </div>
       </div>
     </div>
 
@@ -765,23 +816,6 @@
 
     <!-- Material usage (length-based) -->
     <div class="field-divider">Material Usage</div>
-
-    <div class="material-row">
-      <span class="field-label">Roll Width (mm) — tap to select</span>
-      <div class="chip-list" id="matChipList" style="margin-top:8px;"></div>
-    </div>
-    <div class="mat-add-row">
-      <div class="add-input-wrap hidden" id="matInputWrap">
-        <input type="text" id="newMatInput" inputmode="decimal" placeholder="New roll width in mm, e.g. 500" autocomplete="off">
-      </div>
-      <button type="button" id="addMatBtn">+ Add</button>
-      <button type="button" id="delMatModeBtn" class="del-toggle-btn">🗑 Remove</button>
-    </div>
-
-    <label class="float inline-compact" style="margin-top:14px;">
-      <span class="field-label">Gap (mm, total) — default 3</span>
-      <input type="text" id="gapInput" inputmode="decimal" placeholder="3" autocomplete="off">
-    </label>
 
     <div class="mat-card" id="matCard">
       <div class="mc-header">
@@ -842,6 +876,16 @@
           <div class="value" id="distortionResult">—</div>
         </div>
       </div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-label">Distortion %</div>
+          <div class="stat-value" id="distortionPct">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Scale %</div>
+          <div class="stat-value" id="scalePct">—</div>
+        </div>
+      </div>
     </div>
 
     <table id="resultsTable">
@@ -881,11 +925,19 @@
     return n.toFixed(1) + '%';
   }
 
+  // Fixed K-Factor (mm) subtracted from the cylinder's circumference to
+  // account for plate + mounting-tape distortion when wrapped on the
+  // cylinder. Matches calculateDistortion(teeth) exactly:
+  //   repeat      = teeth * 3.175
+  //   plateLength = repeat - DISTORTION_MM
+  //   distortion% = (DISTORTION_MM / repeat) * 100
+  //   scale%      = 100 - distortion%
+  const DISTORTION_MM = 6.05;
+
   // ═══════════════════════════════════════════
   // Shared state
   // ═══════════════════════════════════════════
   const DEFAULT_CYLINDERS = [88,90,98,106,111,117,124,135,149,189];
-  const DEFAULT_MATERIALS = [100, 150, 200, 250, 300, 310, 350];
 
   function loadList(key, fallback){
     try{
@@ -903,8 +955,6 @@
   }
 
   let CYLINDERS  = loadList('cylRepeatCalc_cylinders', DEFAULT_CYLINDERS);
-  let MATERIALS  = loadList('cylRepeatCalc_materials', DEFAULT_MATERIALS);
-  let selectedMaterial = MATERIALS.includes(350) ? 350 : MATERIALS[0];
 
   // state for the Visual Preview diagrams
   let lastMatch   = null; // {cyl, divisor, value}
@@ -921,6 +971,8 @@
   const resultsBody      = document.getElementById('resultsBody');
   const emptyState       = document.getElementById('emptyState');
   const cylNoEcho        = document.getElementById('cylNoEcho');
+  const distortionPct    = document.getElementById('distortionPct');
+  const scalePct         = document.getElementById('scalePct');
 
   function calculate(){
     const raw = inputVal.value.trim().replace(',','.');
@@ -932,9 +984,13 @@
       return;
     }
     const base = num * 3.175;
+    const distortionPctVal = (DISTORTION_MM / base) * 100;
+    const scalePctVal      = 100 - distortionPctVal;
     cylNoEcho.textContent         = formatNum(num);
     baseResult.textContent       = formatNum(base);
-    distortionResult.textContent = formatNum(base - 6.05);
+    distortionResult.textContent = formatNum(base - DISTORTION_MM);
+    distortionPct.textContent    = distortionPctVal.toFixed(4) + '%';
+    scalePct.textContent         = scalePctVal.toFixed(4) + '%';
     resultHeadline.classList.add('show');
     resultsBody.innerHTML = '';
     for (let d = 1; d <= 13; d++){
@@ -1058,9 +1114,20 @@
   const matchDivisor   = document.getElementById('matchDivisor');
   const matchBeforeDist = document.getElementById('matchBeforeDist');
   const matchAfterDist  = document.getElementById('matchAfterDist');
+  const matchRepeatGap  = document.getElementById('matchRepeatGap');
+  const matchAcrossGap  = document.getElementById('matchAcrossGap');
   const noMatch        = document.getElementById('noMatch');
   const matchTable     = document.getElementById('matchTable');
   const matchTableBody = document.getElementById('matchTableBody');
+  const marginToggleBtn = document.getElementById('marginToggleBtn');
+  let marginEnabled = true; // 0.5mm match-margin tolerance, togglable on/off
+
+  marginToggleBtn.addEventListener('click', () => {
+    marginEnabled = !marginEnabled;
+    marginToggleBtn.classList.toggle('on', marginEnabled);
+    marginToggleBtn.textContent = marginEnabled ? 'ON' : 'OFF';
+    findCylinder();
+  });
 
   function findCylinder(){
     const raw = sizeInput.value.trim().replace(',','.');
@@ -1075,7 +1142,7 @@
     }
 
     const target = mm + 3;
-    const TOLERANCE = 0.5; // mm — value may be up to 0.5mm under target
+    const TOLERANCE = marginEnabled ? 0.5 : 0; // mm — value may be up to this much under target
     let best = null;
     for (const cyl of CYLINDERS){
       const base = cyl * 3.175;
@@ -1097,7 +1164,9 @@
     matchValue.textContent    = formatNum(best.value);
     matchDivisor.textContent  = best.divisor;
     matchBeforeDist.textContent = formatNum(best.cyl * 3.175);
-    matchAfterDist.textContent  = formatNum((best.cyl * 3.175) - 6.05);
+    matchAfterDist.textContent  = formatNum((best.cyl * 3.175) - DISTORTION_MM);
+    matchRepeatGap.textContent  = `${formatNum(getGapTotal())} mm`;
+    matchAcrossGap.textContent  = `${formatNum(best.value - mm)} mm`;
     matchCard.classList.add('show');
 
     matchTableBody.innerHTML = '';
@@ -1117,91 +1186,11 @@
   // ═══════════════════════════════════════════
   // Material selector
   // ═══════════════════════════════════════════
-  const matChipList = document.getElementById('matChipList');
-  const newMatInput  = document.getElementById('newMatInput');
-  const addMatBtn    = document.getElementById('addMatBtn');
-  const delMatModeBtn = document.getElementById('delMatModeBtn');
-  let matDeleteMode = false;
-
-  function renderMaterials(){
-    matChipList.innerHTML = '';
-    matChipList.classList.toggle('delete-mode', matDeleteMode);
-    if (MATERIALS.length === 0){
-      const hint = document.createElement('div');
-      hint.className = 'list-empty-hint';
-      hint.textContent = 'No roll sizes yet — add one below.';
-      matChipList.appendChild(hint);
-      selectedMaterial = null;
-      return;
-    }
-    if (selectedMaterial === null || !MATERIALS.includes(selectedMaterial)){
-      selectedMaterial = MATERIALS[0];
-    }
-    MATERIALS.forEach(m => {
-      const chip = document.createElement('div');
-      chip.className = 'chip' + (m === selectedMaterial && !matDeleteMode ? ' active' : '');
-
-      const label = document.createElement('span');
-      label.className = 'chip-label';
-      label.textContent = `${m} mm`;
-      chip.appendChild(label);
-
-      chip.addEventListener('click', () => {
-        if (matDeleteMode){
-          MATERIALS = MATERIALS.filter(x => x !== m);
-          saveList('cylRepeatCalc_materials', MATERIALS);
-          if (selectedMaterial === m) selectedMaterial = null;
-          renderMaterials();
-          calcMaterial();
-        } else {
-          selectedMaterial = m;
-          renderMaterials();
-          calcMaterial();
-        }
-      });
-
-      matChipList.appendChild(chip);
-    });
-  }
-  renderMaterials();
-
-  delMatModeBtn.addEventListener('click', () => {
-    matDeleteMode = !matDeleteMode;
-    delMatModeBtn.classList.toggle('active', matDeleteMode);
-    delMatModeBtn.textContent = matDeleteMode ? '✕ Done' : '🗑 Remove';
-    renderMaterials();
-  });
-
-  function addMaterial(){
-    const raw = newMatInput.value.trim().replace(',','.');
-    const num = parseFloat(raw);
-    if (isNaN(num) || num <= 0) return;
-    if (!MATERIALS.includes(num)){
-      MATERIALS.push(num);
-      MATERIALS.sort((a,b) => a-b);
-      saveList('cylRepeatCalc_materials', MATERIALS);
-    }
-    selectedMaterial = num;
-    renderMaterials();
-    newMatInput.value = '';
-    calcMaterial();
-    matInputWrap.classList.add('hidden');
-  }
-  const matInputWrap = document.getElementById('matInputWrap');
-  addMatBtn.addEventListener('click', () => {
-    if (matInputWrap.classList.contains('hidden')){
-      matInputWrap.classList.remove('hidden');
-      newMatInput.focus();
-      return;
-    }
-    addMaterial();
-  });
-  newMatInput.addEventListener('keydown', e => { if (e.key === 'Enter') addMaterial(); });
-
   // ═══════════════════════════════════════════
   // Material usage (length-based)
   // ═══════════════════════════════════════════
   const lengthInput   = document.getElementById('lengthInput');
+  const matWidthInput = document.getElementById('matWidthInput');
   const gapInput      = document.getElementById('gapInput');
   const matGapNote    = document.getElementById('matGapNote');
   const matCard       = document.getElementById('matCard');
@@ -1214,8 +1203,14 @@
   const matWastePct   = document.getElementById('matWastePct');
   const matNoFit      = document.getElementById('matNoFit');
 
-  const GAP_MM = 1.5; // fixed gap on each side of the repeat (top/bottom)
+  const GAP_MM = 1.5; // fixed gap on each side of the repeat (top/bottom) — default when the Gap field is left blank
   const MATERIAL_MARGIN_MM = 4; // fixed 4mm reserved margin at the top and bottom of the roll width
+
+  function getGapTotal(){
+    const raw = gapInput.value.trim().replace(',','.');
+    const num = parseFloat(raw);
+    return (raw !== '' && !isNaN(num) && num >= 0) ? num : (GAP_MM * 2);
+  }
 
   function calcMaterial(){
     const raw = lengthInput.value.trim().replace(',','.');
@@ -1227,8 +1222,11 @@
       renderVisuals();
       return;
     }
-    if (selectedMaterial === null || !MATERIALS.length){
-      matNoFit.textContent = 'No roll size selected — add one above.';
+
+    const materialRaw = matWidthInput.value.trim().replace(',','.');
+    const materialMM  = parseFloat(materialRaw);
+    if (materialRaw === '' || isNaN(materialMM) || materialMM <= 0){
+      matNoFit.textContent = 'Enter a roll width above.';
       matNoFit.classList.add('show');
       lastMatCalc = null;
       renderVisuals();
@@ -1236,11 +1234,9 @@
     }
 
     const lengthMM = mm;
-    const gapRaw   = gapInput.value.trim().replace(',','.');
-    const gapNum   = parseFloat(gapRaw);
-    const gapTotal = (gapRaw !== '' && !isNaN(gapNum) && gapNum >= 0) ? gapNum : (GAP_MM * 2);
+    const gapTotal = getGapTotal();
     const pitchMM  = lengthMM + gapTotal;
-    const usableMM = selectedMaterial - (MATERIAL_MARGIN_MM * 2); // 4mm reserved at top + 4mm at bottom
+    const usableMM = materialMM - (MATERIAL_MARGIN_MM * 2); // 4mm reserved at top + 4mm at bottom
 
     matGapNote.innerHTML = `Gap: <b>${formatNum(gapTotal/2)} mm</b> on each side of the repeat (${formatNum(gapTotal)} mm total per piece)`;
 
@@ -1255,13 +1251,13 @@
     const repeats   = Math.floor(usableMM / pitchMM);
     const totalUsed = repeats * pitchMM;
     const netUsed   = repeats * lengthMM;              // actual sticker material only, no gap
-    const wasteGap  = selectedMaterial - netUsed;       // everything else: margins + gaps + leftover slack
-    const usedPct   = (netUsed / selectedMaterial) * 100;
+    const wasteGap  = materialMM - netUsed;             // everything else: margins + gaps + leftover slack
+    const usedPct   = (netUsed / materialMM) * 100;
     const wastePct  = 100 - usedPct;
 
     matRepeats.textContent   = `${repeats} pcs`;
     matPitch.textContent     = `${formatNum(pitchMM)} mm`;
-    matTotalUsed.textContent = `${formatNum(totalUsed)} / ${formatNum(selectedMaterial)} mm`;
+    matTotalUsed.textContent = `${formatNum(totalUsed)} / ${formatNum(materialMM)} mm`;
     matNetUsed.textContent   = `${formatNum(netUsed)} mm`;
     matUsedPct.textContent   = formatPct(usedPct);
     matWasteGap.textContent  = `${formatNum(wasteGap)} mm`;
@@ -1269,12 +1265,14 @@
 
     matCard.classList.add('show');
 
-    lastMatCalc = {pitchMM, repeats, totalUsedMM: totalUsed, materialMM: selectedMaterial};
+    lastMatCalc = {pitchMM, repeats, totalUsedMM: totalUsed, materialMM: materialMM};
     renderVisuals();
   }
 
   lengthInput.addEventListener('input', calcMaterial);
+  matWidthInput.addEventListener('input', calcMaterial);
   gapInput.addEventListener('input', calcMaterial);
+  gapInput.addEventListener('input', findCylinder);
 
   // ═══════════════════════════════════════════
   // Visual Preview (sticker / cylinder / material)
